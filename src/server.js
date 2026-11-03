@@ -1,4 +1,5 @@
 const http = require('http')
+const https = require('https')
 const fs = require('fs')
 const path = require('path')
 const addon = require('./addon')
@@ -15,7 +16,8 @@ function decodeConfig(str) {
 }
 
 function send(res, status, body, type = 'application/json; charset=utf-8', extra = {}) {
-  res.writeHead(status, { 'content-type': type, 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', ...extra })
+  // allow-private-network: lets web.stremio.com reach an addon on a LAN address in Chromium browsers.
+  res.writeHead(status, { 'content-type': type, 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-private-network': 'true', ...extra })
   res.end(typeof body === 'string' ? body : JSON.stringify(body))
 }
 
@@ -51,7 +53,7 @@ async function handle(req, res) {
 
   const config = decodeConfig(parts[0])
   if (!config) return send(res, 404, { error: 'not found' })
-  config.origin = `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`
+  config.origin = `${req.headers['x-forwarded-proto'] || (req.socket.encrypted ? 'https' : 'http')}://${req.headers.host}`
   const [, resource, type, id, extra] = parts
 
   if (resource === 'manifest.json') return send(res, 200, addon.manifest)
@@ -70,12 +72,25 @@ async function handle(req, res) {
   return send(res, 404, { error: 'not found' })
 }
 
-http.createServer((req, res) => {
+const handler = (req, res) => {
   handle(req, res).catch((err) => {
     console.error(err)
     send(res, 500, { error: err.message })
   })
-}).listen(PORT, () => console.log(`Hide Watched addon on http://127.0.0.1:${PORT}/configure`))
+}
+
+// Built-in https for running on a LAN without a reverse proxy: TLS_CERT and TLS_KEY are PEM
+// file paths (e.g. the Duck DNS add-on's /ssl/fullchain.pem and /ssl/privkey.pem).
+const { TLS_CERT, TLS_KEY } = process.env
+const tlsFiles = () => ({ cert: fs.readFileSync(TLS_CERT), key: fs.readFileSync(TLS_KEY) })
+const server = TLS_CERT && TLS_KEY ? https.createServer(tlsFiles(), handler) : http.createServer(handler)
+server.listen(PORT, () => console.log(`Hide Watched addon on ${TLS_CERT ? 'https' : 'http'}://127.0.0.1:${PORT}/configure`))
+if (TLS_CERT && TLS_KEY) {
+  // Let's Encrypt renews every couple of months; pick up the new files without a restart.
+  setInterval(() => {
+    try { server.setSecureContext(tlsFiles()) } catch (e) { console.error(`reloading certificate: ${e.message}`) }
+  }, 6 * 3600e3).unref()
+}
 
 // Render's free plan puts the server to sleep after 15 idle minutes, and waking it takes about
 // a minute, which Stremio shows as "still fetching catalogs". Pinging our own public URL keeps

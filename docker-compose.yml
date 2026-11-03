@@ -1,20 +1,35 @@
 # Portainer: Stacks → Add stack → Repository, pointing at this repo (compose path
-# docker-compose.yml). Stremio only installs addons from https URLs, so put the
-# container behind your reverse proxy, or fill in TUNNEL_TOKEN to use the
-# Cloudflare Tunnel service below.
+# docker-compose.yml). Stremio only installs addons from https URLs: either give the
+# container a certificate (the TLS_* variables below), put it behind your reverse
+# proxy, or fill in TUNNEL_TOKEN to use the Cloudflare Tunnel service.
+#
+# Home Assistant OS with the Duck DNS add-on, LAN only, set these stack variables:
+#   PORT=7443
+#   CERT_DIR=/mnt/data/supervisor/ssl
+#   TLS_CERT=/certs/fullchain.pem
+#   TLS_KEY=/certs/privkey.pem
+#   RUN_AS=root            (the add-on's private key is only readable by root)
+# and open https://<your-name>.duckdns.org:7443/configure
 services:
   hide-watched:
     build: .
     image: stremio-hide-watched:latest
     container_name: stremio-hide-watched
     restart: unless-stopped
+    user: ${RUN_AS:-node}
     ports:
-      - "7000:7000"
+      - "${PORT:-7000}:${PORT:-7000}"
+    environment:
+      - PORT=${PORT:-7000}
+      - TLS_CERT=${TLS_CERT:-}
+      - TLS_KEY=${TLS_KEY:-}
+    volumes:
+      - ${CERT_DIR:-./certs}:/certs:ro
 
   # Optional: a Cloudflare Tunnel gives the addon an https address without opening
   # ports. Create a tunnel in the Cloudflare dashboard (Zero Trust → Networks →
   # Tunnels), point its public hostname at http://hide-watched:7000, and set
-  # TUNNEL_TOKEN in the stack's environment variables.
+  # TUNNEL_TOKEN and COMPOSE_PROFILES=tunnel in the stack's environment variables.
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: stremio-hide-watched-tunnel
