@@ -78,7 +78,7 @@ Then, **on the phone**:
 3. Tap **Install in Stremio**. The Stremio app opens and asks to install. If it
    doesn't, tap **Copy addon URL**, then in Stremio go to Addons → search box →
    paste the URL.
-4. The **Up Next (unwatched)** row appears on the Board.
+4. The **Hide Watched** row appears on the Board, and in search results.
 
 On a computer using https://web.stremio.com, use **Install on Stremio Web**
 instead. The `stremio://` link behind "Install in Stremio app" only opens the
