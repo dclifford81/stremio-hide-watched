@@ -74,7 +74,13 @@ function startFakes() {
     res.end('{}')
   })
   server.requests = []
-  server.addons = ['cinemeta', 'community.hidewatched', 'torrentio'].map((id) => ({ transportUrl: `https://${id}.example/manifest.json`, manifest: { id } }))
+  const hw = (authKey, host) => ({ transportUrl: `https://${host}/${Buffer.from(JSON.stringify({ authKey })).toString('base64url')}/manifest.json`, manifest: { id: 'community.hidewatched' } })
+  server.addons = [
+    { transportUrl: 'https://cinemeta.example/manifest.json', manifest: { id: 'cinemeta' } },
+    hw('OLD', 'render.example'),
+    { transportUrl: 'https://torrentio.example/manifest.json', manifest: { id: 'torrentio' } },
+    hw('KEY', 'lan.example:7443'),
+  ]
   return new Promise((r) => server.listen(0, () => r(server)))
 }
 
@@ -131,8 +137,8 @@ test('hides every watched episode, with toggle links', async (t) => {
   assert.match(stale.description, /^⚠ Your Stremio login/)
   assert.strictEqual((await get(`/${bad}/meta/series/hw%3Areconnect.json`)).meta.name, '⚠ Reconnect Hide Watched')
 
-  // "Move the row to the top" puts this addon first in the account's addon order.
+  // "Move the row to the top" puts this login's copy first and drops the stale copy.
   const moved = await (await fetch(`http://127.0.0.1:${port}/move-to-top`, { method: 'POST', body: JSON.stringify({ authKey: 'KEY' }) })).json()
-  assert.deepStrictEqual(moved, { copies: ['community.hidewatched.example'] })
-  assert.deepStrictEqual(fake.addons.map((a) => a.manifest.id), ['community.hidewatched', 'cinemeta', 'torrentio'])
+  assert.deepStrictEqual(moved, { removed: 1 })
+  assert.deepStrictEqual(fake.addons.map((a) => a.transportUrl.split('/')[2]), ['lan.example:7443', 'cinemeta.example', 'torrentio.example'])
 })

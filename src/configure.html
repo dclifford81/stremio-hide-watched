@@ -59,7 +59,7 @@
 
   <section id="order" hidden>
     <h2>4. Put the row at the top</h2>
-    <p>Stremio lists addon rows in the order addons were installed, so this row starts at the bottom of the Board. After installing, move it up to sit right under Continue Watching, then reload Stremio.</p>
+    <p>Stremio lists addon rows in the order addons were installed, so this row starts at the bottom of the Board. After installing, move it up to sit right under Continue Watching, then reload Stremio. This also removes any older copies of this addon. Don't log in again for this: a new login can end the session the addon uses.</p>
     <button id="moveTop" class="secondary">Move the row to the top</button>
     <div id="orderMsg" class="msg"></div>
   </section>
@@ -97,6 +97,21 @@
       update()
     } catch (e) { msg(e.message, true) }
   }
+  // Opened from the ⚙ Configure button of the installed addon, the address holds its config
+  // (/<config>/configure), so there's no need to log in again.
+  try {
+    const segments = location.pathname.split('/').filter(Boolean)
+    if (segments.length > 1) {
+      const b64 = segments[0].replace(/-/g, '+').replace(/_/g, '/')
+      const cfg = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))))
+      if (cfg.authKey) {
+        $('authKey').value = cfg.authKey
+        $('hideCaughtUp').checked = !!cfg.hideCaughtUp
+        msg('Using the login from your installed addon.')
+        update()
+      }
+    }
+  } catch {}
   $('authKey').oninput = update
   $('hideCaughtUp').onchange = update
   $('moveTop').onclick = async () => {
@@ -107,9 +122,7 @@
         body: JSON.stringify({ authKey: $('authKey').value.trim() }) })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Could not reorder your addons')
-      out(data.copies.length > 1
-        ? `Done. Note: ${data.copies.length} copies are installed (${data.copies.join(', ')}), so the row shows twice. Uninstall the old one in Stremio's Addons page.`
-        : 'Done. Reload Stremio (or restart the app) and the row sits under Continue Watching.')
+      out(`Done${data.removed ? `, and removed ${data.removed} old cop${data.removed === 1 ? 'y' : 'ies'} of the addon` : ''}. Reload Stremio (or restart the app) and the row sits under Continue Watching.`)
     } catch (e) { out(e.message, true) }
   }
   $('copy').onclick = async () => {

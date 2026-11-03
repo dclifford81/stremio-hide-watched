@@ -66,17 +66,28 @@ function login(email, password) {
   return stremioApi('login', { type: 'Login', email, password, facebook: false })
 }
 
+// The auth key inside an installed copy's URL (…/<base64url config>/manifest.json), if any.
+function keyInUrl(transportUrl) {
+  try {
+    const segment = new URL(transportUrl).pathname.split('/').filter(Boolean)[0]
+    return JSON.parse(Buffer.from(segment, 'base64url').toString('utf8')).authKey
+  } catch { return undefined }
+}
+
 // Stremio shows addon rows on the Board in the account's addon order, puts new installs last,
 // and has no way to reorder them in the apps. Moving this addon to the front puts its row
-// right under Continue Watching.
+// right under Continue Watching. Other copies of it (an old host, or a logged-out key) would
+// show a second row, so they're removed.
 async function moveToTop(authKey) {
   const { addons } = await stremioApi('addonCollectionGet', { type: 'AddonCollectionGet', authKey, update: true })
-  const ours = addons.filter((a) => a.manifest?.id === manifest.id)
-  if (!ours.length) throw new Error('The addon isn\'t installed on this account yet. Install it first, then try again.')
-  const rest = addons.filter((a) => !ours.includes(a))
-  await stremioApi('addonCollectionSet', { type: 'AddonCollectionSet', authKey, addons: [...ours, ...rest] })
-  log(`moved to top: ${ours.length} cop${ours.length === 1 ? 'y' : 'ies'} ahead of ${rest.length} addons`)
-  return { copies: ours.map((a) => a.transportUrl.replace(/^https?:\/\/([^/]+).*/, '$1')) }
+  const isOurs = (a) => a.manifest?.id === manifest.id
+  const current = addons.filter((a) => isOurs(a) && keyInUrl(a.transportUrl) === authKey)
+  if (!current.length) throw new Error('This login\'s copy of the addon isn\'t installed yet. Install it first, then try again.')
+  const removed = addons.filter((a) => isOurs(a) && !current.includes(a))
+  const rest = addons.filter((a) => !isOurs(a))
+  await stremioApi('addonCollectionSet', { type: 'AddonCollectionSet', authKey, addons: [current[0], ...rest] })
+  log(`moved to top ahead of ${rest.length} addons, removed ${removed.length} old cop${removed.length === 1 ? 'y' : 'ies'}`)
+  return { removed: removed.length }
 }
 
 function fetchLibrary(authKey) {
