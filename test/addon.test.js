@@ -19,6 +19,22 @@ test('decodes bitfields written by the official library, including grown lists',
   assert.deepStrictEqual(ids.filter((id) => back.getVideo(id)), ['tt1:1:3', 'tt1:1:8'])
 })
 
+test('reads watched lists built with specials last (the shipping apps) or first (stremio-core source)', () => {
+  const { decodeWatched } = require('../src/addon')
+  // Like The Simpsons: lots of specials, all of season 1 watched, season 2 not.
+  const vids = [ep(1, 1), ep(1, 2), ep(1, 3), ep(2, 1), ep(2, 2), ep(0, 1), ep(0, 2), ep(0, 3), ep(0, 4)]
+  const s1 = new Set(['tt1:1:1', 'tt1:1:2', 'tt1:1:3'])
+  const last = ['tt1:1:1', 'tt1:1:2', 'tt1:1:3', 'tt1:2:1', 'tt1:2:2', 'tt1:0:1', 'tt1:0:2', 'tt1:0:3', 'tt1:0:4']
+  const first = ['tt1:0:1', 'tt1:0:2', 'tt1:0:3', 'tt1:0:4', 'tt1:1:1', 'tt1:1:2', 'tt1:1:3', 'tt1:2:1', 'tt1:2:2']
+  for (const [order, ids] of [['specials-last', last], ['specials-first', first]]) {
+    const r = decodeWatched(serialize(ids, s1), vids)
+    assert.strictEqual(r.order, order)
+    assert.deepStrictEqual([...r.set].sort(), [...s1])
+    // a new episode released after it was saved
+    assert.deepStrictEqual([...decodeWatched(serialize(ids, s1), [...vids, ep(2, 3)]).set].sort(), [...s1])
+  }
+})
+
 // --- end to end against fake Stremio API + Cinemeta -----------------------
 const videos = [ep(1, 1), ep(1, 2), ep(1, 3), ep(1, 4), ep(2, 1), ep(2, 2), ep(2, 3), ep(0, 1), ep(2, 4, '2099-01-01T00:00:00.000Z')]
 const allIds = sortVideos(videos).map((v) => v.id)

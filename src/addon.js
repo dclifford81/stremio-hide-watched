@@ -1,4 +1,4 @@
-const { watchedSet, serialize } = require('./bitfield')
+const { watchedSet, anchor, serialize } = require('./bitfield')
 
 const STREMIO_API = process.env.STREMIO_API || 'https://api.strem.io'
 const CINEMETA = process.env.CINEMETA_URL || 'https://v3-cinemeta.strem.io'
@@ -10,7 +10,7 @@ const LINK_CATEGORY = 'Hide Watched'
 
 const manifest = {
   id: 'community.hidewatched',
-  version: '2.0.0',
+  version: '2.1.0',
   name: 'Hide Watched Episodes',
   description: 'Open any TV series with the episodes you\'ve already watched hidden. Use "Show all episodes" on the show page to switch back.',
   resources: ['catalog', { name: 'meta', types: ['series'], idPrefixes: [PREFIX] }],
@@ -121,16 +121,49 @@ function parseId(id) {
   return base.startsWith('tt') ? { base, token: rest.join(':') } : null
 }
 
-const visibleIds = (allIds, hidden) => allIds.filter((id) => !hidden.has(id))
+// Stremio versions disagree on the episode order a watched bitfield is built against:
+// current stremio-core source sorts specials (season 0) first, while the shipping apps put
+// them last (their MetaItem order), and older ones used the addon's own order. Reading
+// with the wrong order shifts every flag (e.g. by 74 specials on The Simpsons), so pick
+// the order whose position for the bitfield's anchor (its last id + length) lines up.
+function specialsLast(videos) {
+  const k = (v) => [v.season === 0 ? Infinity : v.season ?? MIN, v.episode ?? MIN, v.released ? Date.parse(v.released) : MIN]
+  return [...videos].sort((a, b) => {
+    const ka = k(a), kb = k(b)
+    for (let i = 0; i < 3; i++) if (ka[i] !== kb[i]) return ka[i] < kb[i] ? -1 : 1
+    return 0
+  })
+}
+const uniqueIds = (videos) => [...new Set(videos.map((v) => v.id))]
+
+function decodeWatched(serialized, videos) {
+  const a = anchor(serialized)
+  if (!a) return { set: new Set(), order: null }
+  const orders = { 'specials-last': specialsLast(videos), 'specials-first': sortVideos(videos), 'addon': videos }
+  let best = null
+  for (const [order, list] of Object.entries(orders)) {
+    const ids = uniqueIds(list)
+    const idx = ids.indexOf(a.lastVideoId)
+    // New episodes appended after the anchor keep offset 0; a positive offset means
+    // episodes vanished from the front, which Cinemeta practically never does.
+    const offset = a.lastLength - 1 - idx
+    if (idx === -1 || offset < 0 || offset > 3) continue
+    if (!best || offset < best.offset) best = { order, ids, offset }
+    if (offset === 0) break
+  }
+  return best ? { set: watchedSet(serialized, best.ids), order: best.order } : { set: new Set(), order: 'unmatched' }
+}
 
 // Everything watched so far: the normal library item plus progress made on any of our pages.
-function watchedNow(allIds, show) {
-  const watched = watchedSet(show?.real?.state?.watched, allIds)
+function watchedNow(videos, allIds, show) {
+  const real = decodeWatched(show?.real?.state?.watched, videos)
+  const watched = real.set
   for (const { token, item } of show?.ours || []) {
     if (!token) continue
-    for (const id of watchedSet(item.state?.watched, visibleIds(allIds, decodeToken(token, allIds)))) watched.add(id)
+    const hidden = decodeToken(token, allIds)
+    for (const id of decodeWatched(item.state?.watched, videos.filter((v) => !hidden.has(v.id))).set) watched.add(id)
   }
-  return watched
+  return { watched, order: real.order }
 }
 
 function groupLibrary(items) {
@@ -155,12 +188,13 @@ const epLabel = (v) => `S${v.season}E${v.episode}`
 const isReleased = (v) => !v.released || Date.parse(v.released) <= Date.now()
 
 function summarize(meta, show) {
+  // Tokens are always encoded against this one order (it must never change between deploys).
   const videos = sortVideos(meta.videos)
   const allIds = videos.map((v) => v.id)
-  const watched = watchedNow(allIds, show)
+  const { watched, order } = watchedNow(meta.videos, allIds, show)
   // Specials stay in the episode list but don't count towards "unwatched"/"next".
   const unwatched = videos.filter((v) => !watched.has(v.id) && isReleased(v) && v.season !== 0)
-  return { videos, allIds, watched, unwatched, token: encodeToken(allIds, watched) }
+  return { videos, allIds, watched, unwatched, order, token: encodeToken(allIds, watched) }
 }
 
 function preview(meta, base, s) {
@@ -196,9 +230,17 @@ async function libraryOrExpired(config) {
   try {
     return { library: await fetchLibrary(config.authKey) }
   } catch (e) {
-    if (e.sessionExpired) return { expired: true, library: [] }
+    if (e.sessionExpired) {
+      log('library: session expired, showing reconnect card')
+      return { expired: true, library: [] }
+    }
     throw e
   }
+}
+
+// Diagnostics for Render's Logs tab. Never logs the auth key.
+function log(msg) {
+  if (!process.env.QUIET) console.log(`[hide-watched] ${msg}`)
 }
 
 async function catalog(config, { skip = 0, search } = {}) {
@@ -211,15 +253,19 @@ async function catalog(config, { skip = 0, search } = {}) {
       const meta = await fetchMeta(r.id)
       return meta && preview(meta, r.id, summarize(meta, shows.get(r.id)))
     })
+    log(`search "${search}": ${rows.filter(Boolean).length} results`)
     return { metas: rows.filter(Boolean) }
   }
+  const orders = {}
   const rows = await mapLimit([...shows.values()], 8, async (show) => {
     const meta = await fetchMeta(show.id)
     if (!meta) return null
     const s = summarize(meta, show)
+    orders[s.order] = (orders[s.order] || 0) + 1
     if (config.hideCaughtUp && s.unwatched.length === 0) return null
     return preview(meta, show.id, s)
   })
+  log(`row: ${library.length} library items, ${shows.size} series, ${rows.filter(Boolean).length} shown; watched-list order ${JSON.stringify(orders)}`)
   return { metas: rows.filter(Boolean).slice(skip, skip + PAGE_SIZE) }
 }
 
@@ -235,6 +281,8 @@ async function metaFor(config, id) {
   // id has no token, so it falls back to what's watched right now.
   const hidden = parsed.token ? decodeToken(parsed.token, s.allIds) : s.watched
   const videos = s.videos.filter((v) => !hidden.has(v.id))
+  const show = groupLibrary(library).get(parsed.base)
+  log(`show ${parsed.base} "${meta.name}": ${s.allIds.length} episodes, ${s.watched.size} watched (order ${s.order}, ${show?.ours.length || 0} addon-page items), this page hides ${hidden.size}, lists ${videos.length}`)
 
   const links = [{ name: '👁 Show all episodes', category: LINK_CATEGORY, url: `stremio:///detail/series/${parsed.base}` }]
   const newlyWatched = videos.filter((v) => s.watched.has(v.id)).length
@@ -257,4 +305,4 @@ async function metaFor(config, id) {
   }
 }
 
-module.exports = { manifest, catalog, metaFor, login, sortVideos, encodeToken, CATALOG_ID, SEARCH_ID, PREFIX }
+module.exports = { manifest, catalog, metaFor, login, sortVideos, encodeToken, decodeWatched, CATALOG_ID, SEARCH_ID, PREFIX }

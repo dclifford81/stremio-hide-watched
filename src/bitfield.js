@@ -29,10 +29,19 @@ function watchedSet(serialized, videoIds) {
   return out
 }
 
+// Where a serialized bitfield's list ended: { lastVideoId, lastLength }, or null if unreadable.
+function anchor(serialized) {
+  if (!serialized) return null
+  try {
+    const { lastVideoId, lastLength } = parse(serialized)
+    return { lastVideoId, lastLength }
+  } catch { return null }
+}
+
 function serialize(videoIds, watched) {
   const bytes = Buffer.alloc(Math.ceil(videoIds.length / 8))
   videoIds.forEach((id, i) => { if (watched.has(id)) bytes[i >> 3] |= 1 << (i % 8) })
   return `${videoIds[videoIds.length - 1]}:${videoIds.length}:${zlib.deflateSync(bytes).toString('base64')}`
 }
 
-module.exports = { watchedSet, serialize }
+module.exports = { watchedSet, anchor, serialize }
