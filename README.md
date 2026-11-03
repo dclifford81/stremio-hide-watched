@@ -61,7 +61,7 @@ always-on service fits in the free tier's 750 hours a month. If you run other
 free services in the same Render workspace, set the `KEEP_AWAKE` environment
 variable to `0` to turn this off.
 
-**C. Docker / Portainer (your own server).**
+**B. Docker / Portainer (your own server).**
 
 1. In Portainer go to **Stacks → Add stack → Repository**. Enter this repo's
    URL, reference `refs/heads/main` and compose path `docker-compose.yml`. For a
@@ -81,7 +81,7 @@ variable to `0` to turn this off.
 The container keeps no state. To update it, use **Pull and redeploy** on the
 stack, or turn on GitOps updates.
 
-**B. Run it on your PC and tunnel it (good for trying it out).**
+**C. Run it on your PC and tunnel it (good for trying it out).**
 
 ```bash
 npm start
