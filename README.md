@@ -94,6 +94,13 @@ on any device usually puts it on the others too.
 JSON.parse(localStorage.getItem("profile")).auth.key
 ```
 
+That key belongs to that browser's login session, and **logging out there kills
+it**. When that happens, the row turns into a "⚠ Reconnect Hide Watched" card.
+To avoid it, get the key from a browser you stay logged in to. Or log in to
+web.stremio.com in a private window, copy the key, and close the window without
+logging out. The email/password button on the setup page creates its own
+session, so ordinary logouts on your devices don't affect it.
+
 ## Security note
 
 The addon URL contains your auth key, which gives full access to your Stremio

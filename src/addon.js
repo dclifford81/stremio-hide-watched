@@ -41,7 +41,12 @@ async function stremioApi(method, body) {
     body: JSON.stringify(body),
   })
   const json = await res.json()
-  if (json.error) throw new Error(json.error.message || 'Stremio API error')
+  if (json.error) {
+    const err = new Error(json.error.message || 'Stremio API error')
+    // code 1 = "Session does not exist": the auth key was logged out.
+    err.sessionExpired = json.error.code === 1
+    throw err
+  }
   return json.result
 }
 
@@ -174,8 +179,32 @@ function preview(meta, base, s) {
   }
 }
 
+// Shown instead of an error when Stremio rejects the auth key, so the app says what to do.
+const RECONNECT_ID = `${PREFIX}reconnect`
+const RECONNECT_TEXT = 'Your Stremio login for this addon has expired (it happens when the session it came from logs out). Open the setup page, connect again, and install the new addon link.'
+function reconnectMeta(config) {
+  return {
+    id: RECONNECT_ID,
+    type: 'series',
+    name: '⚠ Reconnect Hide Watched',
+    description: RECONNECT_TEXT,
+    links: config.origin ? [{ name: 'Open setup page', category: LINK_CATEGORY, url: `${config.origin}/configure` }] : [],
+  }
+}
+
+async function libraryOrExpired(config) {
+  try {
+    return { library: await fetchLibrary(config.authKey) }
+  } catch (e) {
+    if (e.sessionExpired) return { expired: true, library: [] }
+    throw e
+  }
+}
+
 async function catalog(config, { skip = 0, search } = {}) {
-  const shows = groupLibrary(await fetchLibrary(config.authKey))
+  const { library, expired } = await libraryOrExpired(config)
+  if (expired) return { metas: skip ? [] : [reconnectMeta(config)] }
+  const shows = groupLibrary(library)
   if (search) {
     const results = await searchSeries(search)
     const rows = await mapLimit(results.slice(0, 30), 8, async (r) => {
@@ -195,10 +224,12 @@ async function catalog(config, { skip = 0, search } = {}) {
 }
 
 async function metaFor(config, id) {
+  if (id === RECONNECT_ID) return { meta: reconnectMeta(config), cacheMaxAge: 0 }
   const parsed = parseId(id)
   if (!parsed) return { meta: null }
-  const [meta, library] = await Promise.all([fetchMeta(parsed.base), fetchLibrary(config.authKey)])
+  const [meta, { library, expired }] = await Promise.all([fetchMeta(parsed.base), libraryOrExpired(config)])
   if (!meta) return { meta: null }
+  // With an expired key the page still serves exactly its token's list, just with a warning.
   const s = summarize(meta, groupLibrary(library).get(parsed.base))
   // The list for this id comes from its token only (see encodeToken); a bare "hw:tt…"
   // id has no token, so it falls back to what's watched right now.
@@ -210,7 +241,10 @@ async function metaFor(config, id) {
   if (newlyWatched) {
     links.push({ name: `↻ Hide ${newlyWatched} newly watched`, category: LINK_CATEGORY, url: `stremio:///detail/series/${PREFIX}${parsed.base}:${s.token}` })
   }
-  const note = `👁 ${hidden.size} watched episode${hidden.size === 1 ? '' : 's'} hidden`
+  if (expired) links.push(...reconnectMeta(config).links)
+  const note = expired
+    ? `⚠ ${RECONNECT_TEXT}`
+    : `👁 ${hidden.size} watched episode${hidden.size === 1 ? '' : 's'} hidden`
   return {
     meta: {
       ...meta,
@@ -219,7 +253,7 @@ async function metaFor(config, id) {
       links: [...links, ...(meta.links || [])],
       description: `${note}\n\n${meta.description || ''}`.trim(),
     },
-    cacheMaxAge: 60,
+    cacheMaxAge: expired ? 0 : 60,
   }
 }
 

@@ -51,6 +51,7 @@ async function handle(req, res) {
 
   const config = decodeConfig(parts[0])
   if (!config) return send(res, 404, { error: 'not found' })
+  config.origin = `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`
   const [, resource, type, id, extra] = parts
 
   if (resource === 'manifest.json') return send(res, 200, addon.manifest)

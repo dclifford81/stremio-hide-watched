@@ -41,7 +41,7 @@ function startFakes() {
     res.setHeader('content-type', 'application/json')
     if (req.url === '/api/datastoreGet') {
       const { authKey, collection } = JSON.parse(body)
-      if (authKey !== 'KEY' || collection !== 'libraryItem') return res.end(JSON.stringify({ error: { message: 'bad session' } }))
+      if (authKey !== 'KEY' || collection !== 'libraryItem') return res.end(JSON.stringify({ error: { code: 1, message: 'Session does not exist' } }))
       return res.end(JSON.stringify({ result: library }))
     }
     if (req.url === '/meta/series/tt1.json') return res.end(JSON.stringify({ meta: { id: 'tt1', type: 'series', name: 'Show', description: 'desc', videos, links: [{ name: 'Comedy', category: 'Genres', url: 'stremio:///discover' }] } }))
@@ -95,6 +95,13 @@ test('hides every watched episode, with toggle links', async (t) => {
   const hideDone = Buffer.from(JSON.stringify({ authKey: 'KEY', hideCaughtUp: true })).toString('base64url')
   assert.strictEqual((await get(`/${hideDone}/catalog/series/hw-unwatched.json`)).metas.length, 1)
 
+  // A logged-out key shows a reconnect card instead of an error, and pages keep their list.
   const bad = Buffer.from(JSON.stringify({ authKey: 'WRONG' })).toString('base64url')
-  assert.strictEqual((await fetch(`http://127.0.0.1:${port}/${bad}/catalog/series/hw-unwatched.json`)).status, 500)
+  const expired = await get(`/${bad}/catalog/series/hw-unwatched.json`)
+  assert.deepStrictEqual(expired.metas.map((m) => m.id), ['hw:reconnect'])
+  assert.strictEqual(expired.metas[0].links[0].url, `http://127.0.0.1:${port}/configure`)
+  const stale = (await get(`/${bad}/meta/series/${encodeURIComponent(metas[0].id)}.json`)).meta
+  assert.deepStrictEqual(stale.videos.map((v) => v.id), meta.videos.map((v) => v.id))
+  assert.match(stale.description, /^⚠ Your Stremio login/)
+  assert.strictEqual((await get(`/${bad}/meta/series/hw%3Areconnect.json`)).meta.name, '⚠ Reconnect Hide Watched')
 })
