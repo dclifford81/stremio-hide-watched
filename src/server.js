@@ -45,6 +45,15 @@ async function handle(req, res) {
     }
   }
 
+  if (req.method === 'POST' && url.pathname === '/move-to-top') {
+    const { authKey } = await readBody(req)
+    try {
+      return send(res, 200, await addon.moveToTop(authKey))
+    } catch (e) {
+      return send(res, 400, { error: e.message })
+    }
+  }
+
   if (parts.length === 0) return send(res, 302, '', 'text/plain', { location: '/configure' })
   if (parts.at(-1) === 'configure') return send(res, 200, configureHtml, 'text/html; charset=utf-8')
   if (parts.length === 1 && parts[0] === 'manifest.json') {

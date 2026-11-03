@@ -61,6 +61,11 @@ function startFakes() {
       if (authKey !== 'KEY' || collection !== 'libraryItem') return res.end(JSON.stringify({ error: { code: 1, message: 'Session does not exist' } }))
       return res.end(JSON.stringify({ result: library }))
     }
+    if (req.url === '/api/addonCollectionGet') return res.end(JSON.stringify({ result: { addons: server.addons } }))
+    if (req.url === '/api/addonCollectionSet') {
+      server.addons = JSON.parse(body).addons
+      return res.end(JSON.stringify({ result: { success: true } }))
+    }
     if (req.url === '/meta/series/tt1.json') return res.end(JSON.stringify({ meta: { id: 'tt1', type: 'series', name: 'Show', description: 'desc', videos, links: [{ name: 'Comedy', category: 'Genres', url: 'stremio:///discover' }] } }))
     if (req.url === '/meta/series/tt2.json') return res.end(JSON.stringify({ meta: { id: 'tt2', type: 'series', name: 'Done', videos: [{ id: 'tt2:1:1', season: 1, episode: 1, released: '2020-01-01' }] } }))
     if (req.url === '/meta/series/tt9.json') return res.end(JSON.stringify({ meta: { id: 'tt9', type: 'series', name: 'Never watched', videos: [{ id: 'tt9:1:1', season: 1, episode: 1, released: '2020-01-01' }] } }))
@@ -69,6 +74,7 @@ function startFakes() {
     res.end('{}')
   })
   server.requests = []
+  server.addons = ['cinemeta', 'community.hidewatched', 'torrentio'].map((id) => ({ transportUrl: `https://${id}.example/manifest.json`, manifest: { id } }))
   return new Promise((r) => server.listen(0, () => r(server)))
 }
 
@@ -124,4 +130,9 @@ test('hides every watched episode, with toggle links', async (t) => {
   assert.deepStrictEqual(stale.videos.map((v) => v.id), meta.videos.map((v) => v.id))
   assert.match(stale.description, /^⚠ Your Stremio login/)
   assert.strictEqual((await get(`/${bad}/meta/series/hw%3Areconnect.json`)).meta.name, '⚠ Reconnect Hide Watched')
+
+  // "Move the row to the top" puts this addon first in the account's addon order.
+  const moved = await (await fetch(`http://127.0.0.1:${port}/move-to-top`, { method: 'POST', body: JSON.stringify({ authKey: 'KEY' }) })).json()
+  assert.deepStrictEqual(moved, { copies: ['community.hidewatched.example'] })
+  assert.deepStrictEqual(fake.addons.map((a) => a.manifest.id), ['community.hidewatched', 'cinemeta', 'torrentio'])
 })

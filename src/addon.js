@@ -66,6 +66,19 @@ function login(email, password) {
   return stremioApi('login', { type: 'Login', email, password, facebook: false })
 }
 
+// Stremio shows addon rows on the Board in the account's addon order, puts new installs last,
+// and has no way to reorder them in the apps. Moving this addon to the front puts its row
+// right under Continue Watching.
+async function moveToTop(authKey) {
+  const { addons } = await stremioApi('addonCollectionGet', { type: 'AddonCollectionGet', authKey, update: true })
+  const ours = addons.filter((a) => a.manifest?.id === manifest.id)
+  if (!ours.length) throw new Error('The addon isn\'t installed on this account yet. Install it first, then try again.')
+  const rest = addons.filter((a) => !ours.includes(a))
+  await stremioApi('addonCollectionSet', { type: 'AddonCollectionSet', authKey, addons: [...ours, ...rest] })
+  log(`moved to top: ${ours.length} cop${ours.length === 1 ? 'y' : 'ies'} ahead of ${rest.length} addons`)
+  return { copies: ours.map((a) => a.transportUrl.replace(/^https?:\/\/([^/]+).*/, '$1')) }
+}
+
 function fetchLibrary(authKey) {
   return cached(`lib:${authKey}`, 20e3, () =>
     stremioApi('datastoreGet', { authKey, collection: 'libraryItem', ids: [], all: true }))
@@ -316,4 +329,4 @@ async function metaFor(config, id) {
   }
 }
 
-module.exports = { manifest, catalog, metaFor, login, sortVideos, encodeToken, decodeWatched, CATALOG_ID, SEARCH_ID, PREFIX }
+module.exports = { manifest, catalog, metaFor, login, moveToTop, sortVideos, encodeToken, decodeWatched, CATALOG_ID, SEARCH_ID, PREFIX }

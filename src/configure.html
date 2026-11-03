@@ -22,7 +22,7 @@
   .msg { font-size:.875rem; margin-top:8px; min-height:1.2em; }
   .err { color:var(--err); }
   code { font-size:.8rem; word-break:break-all; color:var(--muted); }
-  #install[hidden] { display:none; }
+  #install[hidden], #order[hidden] { display:none; }
 </style>
 </head>
 <body>
@@ -56,6 +56,13 @@
     <label>Addon URL</label>
     <code id="url"></code>
   </section>
+
+  <section id="order" hidden>
+    <h2>4. Put the row at the top</h2>
+    <p>Stremio lists addon rows in the order addons were installed, so this row starts at the bottom of the Board. After installing, move it up to sit right under Continue Watching, then reload Stremio.</p>
+    <button id="moveTop" class="secondary">Move the row to the top</button>
+    <div id="orderMsg" class="msg"></div>
+  </section>
 </main>
 <script>
   const $ = (id) => document.getElementById(id)
@@ -67,7 +74,7 @@
 
   function update() {
     const authKey = $('authKey').value.trim()
-    $('install').hidden = !authKey
+    $('install').hidden = $('order').hidden = !authKey
     if (!authKey) return
     const cfg = b64url(JSON.stringify({ authKey, hideCaughtUp: $('hideCaughtUp').checked }))
     const url = `${location.origin}/${cfg}/manifest.json`
@@ -92,6 +99,19 @@
   }
   $('authKey').oninput = update
   $('hideCaughtUp').onchange = update
+  $('moveTop').onclick = async () => {
+    const out = (text, isErr) => { $('orderMsg').textContent = text; $('orderMsg').className = 'msg' + (isErr ? ' err' : '') }
+    out('Moving…')
+    try {
+      const res = await fetch('/move-to-top', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ authKey: $('authKey').value.trim() }) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not reorder your addons')
+      out(data.copies.length > 1
+        ? `Done. Note: ${data.copies.length} copies are installed (${data.copies.join(', ')}), so the row shows twice. Uninstall the old one in Stremio's Addons page.`
+        : 'Done. Reload Stremio (or restart the app) and the row sits under Continue Watching.')
+    } catch (e) { out(e.message, true) }
+  }
   $('copy').onclick = async () => {
     try { await navigator.clipboard.writeText($('url').textContent); msg('Copied.') } catch { msg('Copy failed — select the URL manually.', true) }
   }
