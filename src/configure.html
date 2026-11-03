@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hide Watched Episodes</title>
+<style>
+  :root { color-scheme: dark; --bg:#0f0d1a; --card:#1b1830; --fg:#ece9ff; --muted:#a39fc2; --accent:#7b5bf5; --err:#ff7a7a; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; }
+  main { max-width:440px; margin:0 auto; padding:32px 16px; }
+  h1 { font-size:1.5rem; margin:0 0 4px; }
+  p { color:var(--muted); margin:0 0 20px; }
+  section { background:var(--card); border-radius:12px; padding:16px; margin-bottom:16px; }
+  h2 { font-size:1rem; margin:0 0 12px; }
+  label { display:block; font-size:.875rem; color:var(--muted); margin:10px 0 4px; }
+  input[type=email], input[type=password], input[type=text] { width:100%; padding:10px 12px; border-radius:8px; border:1px solid #39345a; background:#120f22; color:var(--fg); font-size:1rem; }
+  .check { display:flex; gap:10px; align-items:center; color:var(--fg); font-size:1rem; margin:0; }
+  button, a.btn { display:block; width:100%; margin-top:14px; padding:12px; border:0; border-radius:8px; background:var(--accent); color:#fff; font-size:1rem; font-weight:600; text-align:center; text-decoration:none; cursor:pointer; }
+  button.secondary { background:#39345a; }
+  .or { text-align:center; color:var(--muted); font-size:.875rem; margin:14px 0 0; }
+  .msg { font-size:.875rem; margin-top:8px; min-height:1.2em; }
+  .err { color:var(--err); }
+  code { font-size:.8rem; word-break:break-all; color:var(--muted); }
+  #install[hidden] { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Hide Watched Episodes</h1>
+  <p>Adds an “Up Next (unwatched)” row with your shows. Opening a show from it lists only the episodes from the next unwatched one onward.</p>
+
+  <section>
+    <h2>1. Connect your Stremio account</h2>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="username">
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password">
+    <button id="login">Log in</button>
+    <div class="or">— or, if you sign in with Google/Facebook, paste your auth key —</div>
+    <label for="authKey">Auth key</label>
+    <input id="authKey" type="text" placeholder="from web.stremio.com (see README)">
+    <div id="msg" class="msg"></div>
+  </section>
+
+  <section>
+    <h2>2. Options</h2>
+    <label class="check"><input id="hideCaughtUp" type="checkbox" checked> Hide shows with nothing new to watch</label>
+  </section>
+
+  <section id="install" hidden>
+    <h2>3. Install</h2>
+    <a id="installLink" class="btn" href="#">Install in Stremio</a>
+    <button id="copy" class="secondary">Copy addon URL</button>
+    <label>Addon URL</label>
+    <code id="url"></code>
+  </section>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id)
+  const msg = (text, isErr) => { $('msg').textContent = text; $('msg').className = 'msg' + (isErr ? ' err' : '') }
+
+  function b64url(str) {
+    return btoa(String.fromCharCode(...new TextEncoder().encode(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  }
+
+  function update() {
+    const authKey = $('authKey').value.trim()
+    $('install').hidden = !authKey
+    if (!authKey) return
+    const cfg = b64url(JSON.stringify({ authKey, hideCaughtUp: $('hideCaughtUp').checked }))
+    const url = `${location.origin}/${cfg}/manifest.json`
+    $('url').textContent = url
+    $('installLink').href = url.replace(/^https?:/, 'stremio:')
+  }
+
+  $('login').onclick = async () => {
+    msg('Logging in…')
+    try {
+      const res = await fetch('/login', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: $('email').value.trim(), password: $('password').value }) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Login failed')
+      $('authKey').value = data.authKey
+      $('password').value = ''
+      msg('Connected. Your password was not stored.')
+      update()
+    } catch (e) { msg(e.message, true) }
+  }
+  $('authKey').oninput = update
+  $('hideCaughtUp').onchange = update
+  $('copy').onclick = async () => {
+    try { await navigator.clipboard.writeText($('url').textContent); msg('Copied.') } catch { msg('Copy failed — select the URL manually.', true) }
+  }
+</script>
+</body>
+</html>

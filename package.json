@@ -1,0 +1,19 @@
+{
+  "name": "stremio-hide-watched",
+  "version": "1.0.0",
+  "description": "Stremio addon: hide already-watched episodes",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "stremio-watched-bitfield": "^1.1.0"
+  },
+  "license": "MIT"
+}
