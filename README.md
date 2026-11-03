@@ -1,10 +1,17 @@
 # Hide Watched Episodes — Stremio addon
 
-Adds an **Up Next (unwatched)** row to Stremio (Android, Android TV, desktop, web).
-Every show you're watching appears there, labelled with the next episode
-(e.g. "Next: S2E5 · 7 unwatched"). Opening a show from this row lists only the
-episodes from your next unwatched one onward, so there's no scrolling past
-seasons you've already finished.
+Hides the episodes you've already watched in a TV series, wherever they are.
+For example, open The Simpsons and only the episodes you haven't seen are listed.
+It works in Stremio on Android, Android TV, desktop and web. Movies aren't affected.
+
+- A **Hide Watched** row on the Board lists the series you're watching, e.g.
+  "212 unwatched · next S4E7 · 678 watched hidden".
+- Searching in Stremio also shows a **Hide Watched** row of results, so you can
+  open any series this way.
+- **Toggle:** a show's page has a **👁 Show all episodes** link that opens the
+  normal page with every episode. Press back to return to the filtered page.
+  After you watch more episodes, a **↻ Hide N newly watched** link appears and
+  refreshes the page without them.
 
 Streams still come from your usual addons (Torrentio etc.). Episode IDs are
 unchanged, so they work as normal.
@@ -12,18 +19,16 @@ unchanged, so they work as normal.
 ## How it works / limits
 
 - Stremio addons can't change the app's own show page. This addon serves its own
-  copy of each show (ID `hw:tt…`) with the watched episodes removed. The normal
-  Cinemeta page, opened from search or Discover, still shows every episode.
+  copy of each show with the watched episodes removed. The normal page, opened
+  from Discover or the regular search results, still shows every episode.
 - It reads your library through your Stremio auth key to find out what you've
   watched. It only reads and never writes to your account.
-- What's hidden is "everything before your first unwatched episode". If you skip
-  around, a watched episode after that point stays visible, with a checkmark.
-- Specials (season 0) are left out.
-- When you watch an episode from this addon's page, Stremio records progress on
-  the `hw:` item rather than the original show. The addon combines both, so the
-  episode is hidden either way. However, an episode watched only from this page
-  won't show as checked on the normal Cinemeta page. The `hw:` item may also
-  appear in Continue Watching, which is fine because it opens the filtered page.
+- When you watch an episode from the addon's page, Stremio records progress on
+  the addon's copy rather than the original show. The addon combines both, so
+  the episode is hidden either way. However, an episode watched only from the
+  addon's page won't show as checked on the normal page.
+- The addon's copy of a show can also appear in Continue Watching. Opening it
+  there opens the filtered page.
 
 ## Run it locally
 

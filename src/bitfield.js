@@ -29,26 +29,10 @@ function watchedSet(serialized, videoIds) {
   return out
 }
 
-// Decode a bitfield that was serialized against some contiguous window of `universe`
-// ending at lastVideoId (used for our own "hw:" items, whose video list is always a suffix).
-function watchedSetFromWindow(serialized, universe) {
-  const out = new Set()
-  if (!serialized) return out
-  let bf
-  try { bf = parse(serialized) } catch { return out }
-  const end = universe.indexOf(bf.lastVideoId)
-  if (end === -1) return out
-  const start = end - bf.lastLength + 1
-  for (let i = 0; i < bf.lastLength; i++) {
-    if (start + i >= 0 && bf.get(i)) out.add(universe[start + i])
-  }
-  return out
-}
-
 function serialize(videoIds, watched) {
   const bytes = Buffer.alloc(Math.ceil(videoIds.length / 8))
   videoIds.forEach((id, i) => { if (watched.has(id)) bytes[i >> 3] |= 1 << (i % 8) })
   return `${videoIds[videoIds.length - 1]}:${videoIds.length}:${zlib.deflateSync(bytes).toString('base64')}`
 }
 
-module.exports = { watchedSet, watchedSetFromWindow, serialize }
+module.exports = { watchedSet, serialize }

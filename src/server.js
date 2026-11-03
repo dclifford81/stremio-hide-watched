@@ -56,9 +56,12 @@ async function handle(req, res) {
   if (resource === 'manifest.json') return send(res, 200, addon.manifest)
 
   const strip = (s) => s && s.replace(/\.json$/, '')
-  if (resource === 'catalog' && type === 'series' && strip(id) === addon.CATALOG_ID) {
-    const skip = parseInt(new URLSearchParams(strip(extra) || '').get('skip'), 10) || 0
-    return send(res, 200, await addon.catalog(config, skip), undefined, { 'cache-control': 'max-age=60' })
+  if (resource === 'catalog' && type === 'series' && [addon.CATALOG_ID, addon.SEARCH_ID].includes(strip(id))) {
+    const params = new URLSearchParams(strip(extra) || '')
+    const search = strip(id) === addon.SEARCH_ID ? params.get('search') : null
+    if (strip(id) === addon.SEARCH_ID && !search) return send(res, 200, { metas: [] })
+    const skip = parseInt(params.get('skip'), 10) || 0
+    return send(res, 200, await addon.catalog(config, { skip, search }), undefined, { 'cache-control': 'max-age=30' })
   }
   if (resource === 'meta' && type === 'series' && id) {
     return send(res, 200, await addon.metaFor(config, strip(id)), undefined, { 'cache-control': 'max-age=60' })
