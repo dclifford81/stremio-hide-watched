@@ -75,6 +75,11 @@ Then, **on the phone**:
    paste the URL.
 4. The **Up Next (unwatched)** row appears on the Board.
 
+On a computer using https://web.stremio.com, use **Install on Stremio Web**
+instead. The `stremio://` link behind "Install in Stremio app" only opens the
+installed apps. Addons sync through your Stremio account, so installing it once
+on any device usually puts it on the others too.
+
 ### Getting your auth key (Google/Facebook logins)
 
 1. Log in at https://web.stremio.com on a computer.

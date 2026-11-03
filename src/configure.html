@@ -17,7 +17,7 @@
   input[type=email], input[type=password], input[type=text] { width:100%; padding:10px 12px; border-radius:8px; border:1px solid #39345a; background:#120f22; color:var(--fg); font-size:1rem; }
   .check { display:flex; gap:10px; align-items:center; color:var(--fg); font-size:1rem; margin:0; }
   button, a.btn { display:block; width:100%; margin-top:14px; padding:12px; border:0; border-radius:8px; background:var(--accent); color:#fff; font-size:1rem; font-weight:600; text-align:center; text-decoration:none; cursor:pointer; }
-  button.secondary { background:#39345a; }
+  button.secondary, a.btn.secondary { background:#39345a; }
   .or { text-align:center; color:var(--muted); font-size:.875rem; margin:14px 0 0; }
   .msg { font-size:.875rem; margin-top:8px; min-height:1.2em; }
   .err { color:var(--err); }
@@ -50,7 +50,8 @@
 
   <section id="install" hidden>
     <h2>3. Install</h2>
-    <a id="installLink" class="btn" href="#">Install in Stremio</a>
+    <a id="installLink" class="btn" href="#">Install in Stremio app</a>
+    <a id="installWeb" class="btn secondary" href="#" target="_blank" rel="noopener">Install on Stremio Web</a>
     <button id="copy" class="secondary">Copy addon URL</button>
     <label>Addon URL</label>
     <code id="url"></code>
@@ -72,6 +73,8 @@
     const url = `${location.origin}/${cfg}/manifest.json`
     $('url').textContent = url
     $('installLink').href = url.replace(/^https?:/, 'stremio:')
+    // stremio:// only opens the installed apps; the web app takes the URL in its hash route.
+    $('installWeb').href = `https://web.stremio.com/#/addons?addon=${encodeURIComponent(url)}`
   }
 
   $('login').onclick = async () => {
