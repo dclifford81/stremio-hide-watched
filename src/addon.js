@@ -10,14 +10,14 @@ const LINK_CATEGORY = 'Hide Watched'
 
 const manifest = {
   id: 'community.hidewatched',
-  version: '2.1.0',
+  version: '2.2.0',
   name: 'Hide Watched Episodes',
   description: 'Open any TV series with the episodes you\'ve already watched hidden. Use "Show all episodes" on the show page to switch back.',
   resources: ['catalog', { name: 'meta', types: ['series'], idPrefixes: [PREFIX] }],
   types: ['series'],
   idPrefixes: [PREFIX],
   catalogs: [
-    { type: 'series', id: CATALOG_ID, name: 'Hide Watched', extra: [{ name: 'skip' }] },
+    { type: 'series', id: CATALOG_ID, name: 'Continue Watching (unwatched only)', extra: [{ name: 'skip' }] },
     { type: 'series', id: SEARCH_ID, name: 'Hide Watched', extra: [{ name: 'search', isRequired: true }] },
   ],
   behaviorHints: { configurable: true },
@@ -25,12 +25,24 @@ const manifest = {
 
 // --- tiny TTL cache ---------------------------------------------------------
 const cache = new Map()
-async function cached(key, ttlMs, fn) {
+const inflight = new Map()
+function load(key, ttlMs, fn) {
+  if (!inflight.has(key)) {
+    inflight.set(key, fn()
+      .then((value) => { cache.set(key, { value, expires: Date.now() + ttlMs }); return value })
+      .finally(() => inflight.delete(key)))
+  }
+  return inflight.get(key)
+}
+// With stale: true an expired value is served at once while it refreshes in the background.
+async function cached(key, ttlMs, fn, { stale = false } = {}) {
   const hit = cache.get(key)
   if (hit && hit.expires > Date.now()) return hit.value
-  const value = await fn()
-  cache.set(key, { value, expires: Date.now() + ttlMs })
-  return value
+  if (hit && stale) {
+    load(key, ttlMs, fn).catch(() => {})
+    return hit.value
+  }
+  return load(key, ttlMs, fn)
 }
 
 // --- remote data ------------------------------------------------------------
@@ -65,7 +77,7 @@ function fetchMeta(imdbId) {
     if (!res.ok) return null
     const { meta } = await res.json()
     return meta && Array.isArray(meta.videos) ? meta : null
-  })
+  }, { stale: true })
 }
 
 function searchSeries(query) {
@@ -73,7 +85,7 @@ function searchSeries(query) {
     const res = await fetch(`${CINEMETA}/catalog/series/top/search=${encodeURIComponent(query)}.json`)
     if (!res.ok) return []
     return (await res.json()).metas || []
-  })
+  }, { stale: true })
 }
 
 async function mapLimit(items, limit, fn) {
@@ -197,20 +209,16 @@ function summarize(meta, show) {
   return { videos, allIds, watched, unwatched, order, token: encodeToken(allIds, watched) }
 }
 
+function card(meta, id, description) {
+  const { name, poster, background, logo, releaseInfo } = meta
+  return { id, type: 'series', name, poster, background, logo, releaseInfo, description }
+}
+
 function preview(meta, base, s) {
   const left = s.unwatched.length
-  return {
-    id: `${PREFIX}${base}:${s.token}`,
-    type: 'series',
-    name: meta.name,
-    poster: meta.poster,
-    background: meta.background,
-    logo: meta.logo,
-    releaseInfo: meta.releaseInfo,
-    description: left
-      ? `${left} unwatched · next ${epLabel(s.unwatched[0])} · ${s.watched.size} watched hidden`
-      : 'All caught up',
-  }
+  return card(meta, `${PREFIX}${base}:${s.token}`, left
+    ? `${left} unwatched · next ${epLabel(s.unwatched[0])} · ${s.watched.size} watched hidden`
+    : 'All caught up')
 }
 
 // Shown instead of an error when Stremio rejects the auth key, so the app says what to do.
@@ -248,10 +256,13 @@ async function catalog(config, { skip = 0, search } = {}) {
   if (expired) return { metas: skip ? [] : [reconnectMeta(config)] }
   const shows = groupLibrary(library)
   if (search) {
-    const results = await searchSeries(search)
-    const rows = await mapLimit(results.slice(0, 30), 8, async (r) => {
+    const results = (await searchSeries(search)).filter((r) => r.id?.startsWith('tt')).slice(0, 20)
+    // Only shows in the library need their episode lists; the rest have nothing to hide yet.
+    const rows = await mapLimit(results, 8, async (r) => {
+      const show = shows.get(r.id)
+      if (!show) return card(r, `${PREFIX}${r.id}:${EMPTY_TOKEN}`, 'Not started')
       const meta = await fetchMeta(r.id)
-      return meta && preview(meta, r.id, summarize(meta, shows.get(r.id)))
+      return meta && preview(meta, r.id, summarize(meta, show))
     })
     log(`search "${search}": ${rows.filter(Boolean).length} results`)
     return { metas: rows.filter(Boolean) }

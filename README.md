@@ -4,8 +4,10 @@ Hides the episodes you've already watched in a TV series, wherever they are.
 For example, open The Simpsons and only the episodes you haven't seen are listed.
 It works in Stremio on Android, Android TV, desktop and web. Movies aren't affected.
 
-- A **Hide Watched** row on the Board lists the series you're watching, e.g.
-  "212 unwatched · next S4E7 · 678 watched hidden".
+- A **Continue Watching (unwatched only)** row on the Board lists the series
+  you're watching, most recent first, e.g.
+  "212 unwatched · next S4E7 · 678 watched hidden". Stremio orders addon rows by
+  install order, so it appears below the rows of addons installed before it.
 - Searching in Stremio also shows a **Hide Watched** row of results, so you can
   open any series this way.
 - **Toggle:** a show's page has a **👁 Show all episodes** link that opens the
@@ -53,8 +55,11 @@ be reachable over HTTPS. Pick one option:
 [render.com](https://render.com) choose **New → Blueprint** and pick the repo.
 The included `render.yaml` sets everything up, and you get
 `https://<name>.onrender.com`.
-On Render's free tier the service sleeps when idle, so the first load after a
-while takes about 30 seconds.
+Render's free tier puts idle services to sleep, and waking takes about a minute.
+To avoid that, the server pings its own Render URL every 10 minutes. One
+always-on service fits in the free tier's 750 hours a month. If you run other
+free services in the same Render workspace, set the `KEEP_AWAKE` environment
+variable to `0` to turn this off.
 
 **B. Run it on your PC and tunnel it (good for trying it out).**
 
@@ -78,7 +83,8 @@ Then, **on the phone**:
 3. Tap **Install in Stremio**. The Stremio app opens and asks to install. If it
    doesn't, tap **Copy addon URL**, then in Stremio go to Addons → search box →
    paste the URL.
-4. The **Hide Watched** row appears on the Board, and in search results.
+4. The **Continue Watching (unwatched only)** row appears on the Board, and a
+   **Hide Watched** row appears in search results.
 
 On a computer using https://web.stremio.com, use **Install on Stremio Web**
 instead. The `stremio://` link behind "Install in Stremio app" only opens the

@@ -76,3 +76,11 @@ http.createServer((req, res) => {
     send(res, 500, { error: err.message })
   })
 }).listen(PORT, () => console.log(`Hide Watched addon on http://127.0.0.1:${PORT}/configure`))
+
+// Render's free plan puts the server to sleep after 15 idle minutes, and waking it takes about
+// a minute, which Stremio shows as "still fetching catalogs". Pinging our own public URL keeps
+// it awake; one always-on service fits in the free plan's 750 hours a month. KEEP_AWAKE=0 stops it.
+const SELF_URL = process.env.RENDER_EXTERNAL_URL
+if (SELF_URL && process.env.KEEP_AWAKE !== '0') {
+  setInterval(() => fetch(`${SELF_URL}/manifest.json`).catch(() => {}), 10 * 60e3).unref()
+}

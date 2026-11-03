@@ -52,6 +52,7 @@ function startFakes() {
     { _id: 'tt3', type: 'movie', removed: false, state: {} },
   ]
   const server = http.createServer(async (req, res) => {
+    server.requests.push(req.url)
     let body = ''
     for await (const c of req) body += c
     res.setHeader('content-type', 'application/json')
@@ -67,6 +68,7 @@ function startFakes() {
     res.statusCode = 404
     res.end('{}')
   })
+  server.requests = []
   return new Promise((r) => server.listen(0, () => r(server)))
 }
 
@@ -107,6 +109,8 @@ test('hides every watched episode, with toggle links', async (t) => {
   // Search finds shows not in the library too.
   const found = await get(`/${cfg}/catalog/series/hw-search/search=show.json`)
   assert.deepStrictEqual(found.metas.map((m) => m.id), [metas[0].id, 'hw:tt9:-'])
+  assert.strictEqual(found.metas[1].description, 'Not started')
+  assert.ok(!fake.requests.includes('/meta/series/tt9.json'), 'search skips episode lists for shows not in the library')
 
   const hideDone = Buffer.from(JSON.stringify({ authKey: 'KEY', hideCaughtUp: true })).toString('base64url')
   assert.strictEqual((await get(`/${hideDone}/catalog/series/hw-unwatched.json`)).metas.length, 1)
