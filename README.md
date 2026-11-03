@@ -7,7 +7,11 @@ It works in Stremio on Android, Android TV, desktop and web. Movies aren't affec
 - A **Continue Watching (unwatched only)** row on the Board lists the series
   you're watching, most recent first, e.g.
   "212 unwatched · next S4E7 · 678 watched hidden". Stremio orders addon rows by
-  install order, so it appears below the rows of addons installed before it.
+  install order, so a new install starts at the bottom. **Move the row to the
+  top** on the setup page puts it right under Continue Watching (and removes
+  older copies of the addon). Open the setup page from the addon's ⚙ Configure
+  button in Stremio, so it reuses the installed login; logging in again can end
+  the session the installed addon uses.
 - Searching in Stremio also shows a **Hide Watched** row of results, so you can
   open any series this way.
 - **Toggle:** a show's page has a **👁 Show all episodes** link that opens the
@@ -70,6 +74,14 @@ variable to `0` to turn this off.
 2. Deploy. Portainer builds the image and runs it on port 7000.
 3. Give it an **https** address. Stremio won't install addons from plain http
    addresses, except on the same machine:
+   - **A certificate you already have** (LAN only, no proxy): set `TLS_CERT` and
+     `TLS_KEY` to the PEM files and the addon serves https itself, reloading
+     the files every 6 hours for renewals. For Home Assistant OS with the Duck
+     DNS add-on, see the variables at the top of `docker-compose.yml`. A lighter
+     alternative is to run `node:22-alpine` with the command
+     `wget -qO- https://codeload.github.com/dclifford81/stremio-hide-watched/tar.gz/refs/heads/main | tar xz --strip-components=1 && exec node src/server.js`
+     (working dir `/app`). It downloads the code on every start, so restarting
+     the container updates it.
    - **Reverse proxy you already run** (Nginx Proxy Manager, Traefik, Caddy):
      proxy a hostname to `http://<server>:7000`.
    - **Cloudflare Tunnel** (no ports to open): create a tunnel in Cloudflare
