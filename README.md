@@ -44,9 +44,10 @@ npm install && npm test
 Stremio on Android only installs addons from **https** URLs, so the server must
 be reachable over HTTPS. Pick one option:
 
-**A. Free hosting (always on).** Push this folder to a GitHub repo, then on
-[render.com](https://render.com) create a *Web Service* from it with
-Build `npm install` and Start `npm start`. You get `https://<name>.onrender.com`.
+**A. Free hosting (always on).** Push this folder to a GitHub repo. Then on
+[render.com](https://render.com) choose **New → Blueprint** and pick the repo.
+The included `render.yaml` sets everything up, and you get
+`https://<name>.onrender.com`.
 On Render's free tier the service sleeps when idle, so the first load after a
 while takes about 30 seconds.
 
