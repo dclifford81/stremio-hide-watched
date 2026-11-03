@@ -1,0 +1,27 @@
+# Portainer: Stacks → Add stack → Repository, pointing at this repo (compose path
+# docker-compose.yml). Stremio only installs addons from https URLs, so put the
+# container behind your reverse proxy, or fill in TUNNEL_TOKEN to use the
+# Cloudflare Tunnel service below.
+services:
+  hide-watched:
+    build: .
+    image: stremio-hide-watched:latest
+    container_name: stremio-hide-watched
+    restart: unless-stopped
+    ports:
+      - "7000:7000"
+
+  # Optional: a Cloudflare Tunnel gives the addon an https address without opening
+  # ports. Create a tunnel in the Cloudflare dashboard (Zero Trust → Networks →
+  # Tunnels), point its public hostname at http://hide-watched:7000, and set
+  # TUNNEL_TOKEN in the stack's environment variables.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: stremio-hide-watched-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    profiles: ["tunnel"]
+    depends_on:
+      - hide-watched

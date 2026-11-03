@@ -61,6 +61,26 @@ always-on service fits in the free tier's 750 hours a month. If you run other
 free services in the same Render workspace, set the `KEEP_AWAKE` environment
 variable to `0` to turn this off.
 
+**C. Docker / Portainer (your own server).**
+
+1. In Portainer go to **Stacks → Add stack → Repository**. Enter this repo's
+   URL, reference `refs/heads/main` and compose path `docker-compose.yml`. For a
+   private repo, turn on **Authentication** and use your GitHub username plus a
+   personal access token with read access to the repo.
+2. Deploy. Portainer builds the image and runs it on port 7000.
+3. Give it an **https** address. Stremio won't install addons from plain http
+   addresses, except on the same machine:
+   - **Reverse proxy you already run** (Nginx Proxy Manager, Traefik, Caddy):
+     proxy a hostname to `http://<server>:7000`.
+   - **Cloudflare Tunnel** (no ports to open): create a tunnel in Cloudflare
+     Zero Trust → Networks → Tunnels and set its public hostname's service to
+     `http://hide-watched:7000`. Then add two environment variables to the
+     stack: `TUNNEL_TOKEN=<token>` and `COMPOSE_PROFILES=tunnel`.
+4. Open `https://<your-hostname>/configure` and install from there.
+
+The container keeps no state. To update it, use **Pull and redeploy** on the
+stack, or turn on GitOps updates.
+
 **B. Run it on your PC and tunnel it (good for trying it out).**
 
 ```bash
